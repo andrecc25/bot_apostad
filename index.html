@@ -226,6 +226,7 @@
 
   .match-row.sig-ACERTO { border-left-color: var(--green); }
   .match-row.sig-ERRO { border-left-color: var(--red); }
+  .match-row.sig-DUVIDA { border-left-color: var(--amber); }
   .match-row.sig-PENDENTE { border-left-color: var(--grey-sig); }
 
   .competicao-tag {
@@ -314,6 +315,7 @@
 
   .badge-ACERTO { color: var(--green); border-color: var(--green-dim); background: rgba(67,209,122,0.06); }
   .badge-ERRO { color: var(--red); border-color: var(--red-dim); background: rgba(232,92,74,0.06); }
+  .badge-DUVIDA { color: var(--amber); border-color: var(--amber-dim); background: rgba(245,166,35,0.06); }
   .badge-PENDENTE { color: var(--text-muted); border-color: var(--line); background: transparent; }
 
   .result-tag {
@@ -410,6 +412,7 @@
     <button class="filter-btn active" data-filter="ALL">Todos</button>
     <button class="filter-btn" data-filter="PENDENTE">Pendentes</button>
     <button class="filter-btn" data-filter="ACERTO">Acertos</button>
+    <button class="filter-btn" data-filter="DUVIDA">Dúvida</button>
     <button class="filter-btn" data-filter="ERRO">Erros</button>
   </div>
   <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -556,27 +559,23 @@
   // ============================================================
 
   function classificarPrevisao(row) {
-    // Um jogo é considerado "finalizado" quando já existe um valor
-    // em "Over 2.5 Real" (SIM/NAO), independentemente do texto exato
-    // que a coluna "Resultado" tiver (ex: FINAL, CORRETO, ERRADO...).
-    const realOver = (row["Over 2.5 Real"] || "").trim().toUpperCase();
+    // Lê diretamente a coluna "Resultado", que o atualizar_resultados.py
+    // já preenche com PENDENTE / CORRETO / ERRADO / ERRADO - DÚVIDA.
+    const resultado = (row["Resultado"] || "").trim().toUpperCase();
 
-    if (realOver !== "SIM" && realOver !== "NAO" && realOver !== "NÃO") {
-      return "PENDENTE";
-    }
-
-    const prob = toNumber(row["Probabilidade Over 2.5"]);
-    const previuOver = prob !== null && prob >= 0.5;
-    const foiOver = realOver === "SIM";
-    return (previuOver === foiOver) ? "ACERTO" : "ERRO";
+    if (resultado === "CORRETO") return "ACERTO";
+    if (resultado === "ERRADO - DÚVIDA" || resultado === "ERRADO - DUVIDA") return "DUVIDA";
+    if (resultado === "ERRADO") return "ERRO";
+    return "PENDENTE";
   }
 
   function renderScoreboard(rows) {
     const totalJogos = rows.length;
-    const pendentes = rows.filter(r => classificarPrevisao(r) === "PENDENTE").length;
     const acertos = rows.filter(r => classificarPrevisao(r) === "ACERTO").length;
     const erros = rows.filter(r => classificarPrevisao(r) === "ERRO").length;
-    const finalizados = acertos + erros;
+    const duvidas = rows.filter(r => classificarPrevisao(r) === "DUVIDA").length;
+    const pendentes = rows.filter(r => classificarPrevisao(r) === "PENDENTE").length;
+    const finalizados = acertos + erros + duvidas;
 
     const taxaAcerto = finalizados > 0 ? (acertos / finalizados) * 100 : null;
 
@@ -688,6 +687,7 @@
       const badgeInfo = {
         "PENDENTE": { label: "PENDENTE" },
         "ACERTO": { label: "✔ ACERTO" },
+        "DUVIDA": { label: "~ DÚVIDA" },
         "ERRO": { label: "✘ ERRO" }
       }[classificacao];
 
