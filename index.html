@@ -150,6 +150,93 @@
     .score-value { font-size: 26px; }
   }
 
+  .pie-panel {
+    max-width: 1100px;
+    margin: 20px auto 0;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 36px;
+    flex-wrap: wrap;
+  }
+
+  .pie-chart-wrap {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    flex-shrink: 0;
+  }
+
+  .pie-chart {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    transition: background 0.3s ease;
+  }
+
+  .pie-center {
+    position: absolute;
+    inset: 26px;
+    background: var(--panel);
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .pie-center-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--green);
+    line-height: 1;
+  }
+
+  .pie-center-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 5px;
+    letter-spacing: 0.3px;
+  }
+
+  .pie-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .pie-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13.5px;
+    color: var(--text-muted);
+  }
+
+  .pie-legend-dot {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+  }
+
+  .pie-legend-name {
+    min-width: 78px;
+    color: var(--text);
+  }
+
+  .pie-legend-value {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  @media (max-width: 700px) {
+    .pie-panel { margin: 16px 16px 0; justify-content: center; }
+  }
+
   /* ===================== CONTROLS ===================== */
 
   .controls {
@@ -403,6 +490,17 @@
   </div>
 </div>
 
+<div class="pie-panel">
+  <div class="pie-chart-wrap">
+    <div class="pie-chart" id="pie-chart"></div>
+    <div class="pie-center">
+      <div class="pie-center-value" id="pie-center-value">—</div>
+      <div class="pie-center-label">acerto</div>
+    </div>
+  </div>
+  <div class="pie-legend" id="pie-legend"></div>
+</div>
+
 <div class="controls">
   <div class="filters" id="filters">
     <button class="filter-btn active" data-filter="ALL">Todos</button>
@@ -583,6 +681,66 @@
     acertoEl.textContent = taxaAcerto !== null ? `${fmt(taxaAcerto, 1)}%` : "—";
   }
 
+  function renderPieChart(rows) {
+    const ordem = ["ACERTO", "DUVIDA", "ERRO", "PENDENTE"];
+
+    const cores = {
+      ACERTO: "var(--green)",
+      DUVIDA: "var(--amber)",
+      ERRO: "var(--red)",
+      PENDENTE: "var(--grey-sig)"
+    };
+
+    const nomes = {
+      ACERTO: "Acertos",
+      DUVIDA: "Dúvida - Erro",
+      ERRO: "Erros",
+      PENDENTE: "Pendentes"
+    };
+
+    const counts = { ACERTO: 0, DUVIDA: 0, ERRO: 0, PENDENTE: 0 };
+    rows.forEach(r => {
+      const c = classificarPrevisao(r);
+      if (counts[c] !== undefined) counts[c]++;
+    });
+
+    const total = rows.length;
+    const chartEl = document.getElementById("pie-chart");
+
+    if (total === 0) {
+      chartEl.style.background = "var(--line)";
+    } else {
+      let acumulado = 0;
+      const stops = [];
+      ordem.forEach(key => {
+        const pct = (counts[key] / total) * 100;
+        const inicio = acumulado;
+        const fim = acumulado + pct;
+        if (pct > 0) stops.push(`${cores[key]} ${inicio}% ${fim}%`);
+        acumulado = fim;
+      });
+      chartEl.style.background = `conic-gradient(${stops.join(", ")})`;
+    }
+
+    const finalizadosDuros = counts.ACERTO + counts.ERRO;
+    const taxaCentro = finalizadosDuros > 0 ? (counts.ACERTO / finalizadosDuros) * 100 : null;
+    document.getElementById("pie-center-value").textContent =
+      taxaCentro !== null ? `${fmt(taxaCentro, 0)}%` : "—";
+
+    const legendEl = document.getElementById("pie-legend");
+    legendEl.innerHTML = ordem.map(key => {
+      const val = counts[key];
+      const pct = total > 0 ? (val / total) * 100 : 0;
+      return `
+        <div class="pie-legend-item">
+          <span class="pie-legend-dot" style="background:${cores[key]}"></span>
+          <span class="pie-legend-name">${nomes[key]}</span>
+          <span class="pie-legend-value">${val}</span>
+          <span>(${fmt(pct, 1)}%)</span>
+        </div>`;
+    }).join("");
+  }
+
   function popularCompeticoes(rows) {
     const select = document.getElementById("competicao-select");
     const atuais = new Set(Array.from(select.options).map(o => o.value));
@@ -737,6 +895,7 @@
       allRows = parseCSV(text);
 
       renderScoreboard(allRows);
+      renderPieChart(allRows);
       popularCompeticoes(allRows);
       renderList();
 
