@@ -113,7 +113,7 @@
     margin: 0 auto;
     padding: 32px 24px 8px;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 1px;
     background: var(--line);
     border: 1px solid var(--line);
@@ -401,10 +401,6 @@
     <div class="score-value green mono" id="stat-acerto">—</div>
     <div class="score-label">Taxa de acerto</div>
   </div>
-  <div class="score-cell">
-    <div class="score-value mono" id="stat-ev">—</div>
-    <div class="score-label">EV médio</div>
-  </div>
 </div>
 
 <div class="controls">
@@ -577,12 +573,7 @@
     const pendentes = rows.filter(r => classificarPrevisao(r) === "PENDENTE").length;
     const finalizados = acertos + erros + duvidas;
 
-    const taxaAcerto = finalizados > 0 ? (acertos / finalizados) * 100 : null;
-
-    const evValidos = rows.map(r => toNumber(r["EV PCT"])).filter(v => v !== null);
-    const evMedio = evValidos.length > 0
-      ? evValidos.reduce((a, b) => a + b, 0) / evValidos.length
-      : null;
+    const taxaAcerto = (acertos + erros) > 0 ? (acertos / (acertos + erros)) * 100 : null;
 
     document.getElementById("stat-jogos").textContent = totalJogos;
     document.getElementById("stat-pendentes").textContent = pendentes;
@@ -590,16 +581,6 @@
 
     const acertoEl = document.getElementById("stat-acerto");
     acertoEl.textContent = taxaAcerto !== null ? `${fmt(taxaAcerto, 1)}%` : "—";
-
-    const evEl = document.getElementById("stat-ev");
-    if (evMedio !== null) {
-      const sinal = evMedio >= 0 ? "+" : "";
-      evEl.textContent = `${sinal}${fmt(evMedio, 1)}%`;
-      evEl.className = "score-value mono " + (evMedio >= 0 ? "pos" : "neg");
-    } else {
-      evEl.textContent = "—";
-      evEl.className = "score-value mono";
-    }
   }
 
   function popularCompeticoes(rows) {
