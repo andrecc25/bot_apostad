@@ -459,6 +459,20 @@
   // PARSE DO CSV (delimitador ";", com BOM utf-8-sig)
   // ============================================================
 
+  function detectarDelimitador(headerLine) {
+    const candidatos = [";", "\t", ","];
+    let melhor = ";";
+    let maxCount = -1;
+    candidatos.forEach(d => {
+      const count = headerLine.split(d).length;
+      if (count > maxCount) {
+        maxCount = count;
+        melhor = d;
+      }
+    });
+    return melhor;
+  }
+
   function parseCSV(text) {
     text = text.replace(/^\uFEFF/, "").trim();
     if (!text) return [];
@@ -466,10 +480,11 @@
     const lines = text.split(/\r?\n/).filter(l => l.length > 0);
     if (lines.length < 2) return [];
 
-    const headers = lines[0].split(CONFIG.delimiter).map(h => h.trim());
+    const delimitador = detectarDelimitador(lines[0]);
+    const headers = lines[0].split(delimitador).map(h => h.trim());
 
     return lines.slice(1).map(line => {
-      const cells = line.split(CONFIG.delimiter);
+      const cells = line.split(delimitador);
       const row = {};
       headers.forEach((h, i) => {
         row[h] = (cells[i] || "").trim();
@@ -490,15 +505,41 @@
   }
 
   function formatDateTime(str) {
-    // espera "YYYY-MM-DD HH:MM"
     if (!str) return "";
     const [datePart, timePart] = str.split(" ");
     if (!datePart) return str;
-    const [y, m, d] = datePart.split("-");
+
+    let d, m, y;
+
+    if (datePart.includes("/")) {
+      // DD/MM/YYYY
+      [d, m, y] = datePart.split("/");
+    } else {
+      // YYYY-MM-DD
+      [y, m, d] = datePart.split("-");
+    }
+
     const meses = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
     const mesIdx = parseInt(m, 10) - 1;
     const mesNome = meses[mesIdx] || m;
     return `${d} ${mesNome} · ${timePart || ""}`.trim();
+  }
+
+  function dataParaOrdenacao(str) {
+    // Devolve um valor comparável (YYYYMMDDHHMM) independentemente
+    // do formato original ser DD/MM/YYYY ou YYYY-MM-DD.
+    if (!str) return "";
+    const [datePart, timePart] = str.split(" ");
+    if (!datePart) return str;
+
+    let d, m, y;
+    if (datePart.includes("/")) {
+      [d, m, y] = datePart.split("/");
+    } else {
+      [y, m, d] = datePart.split("-");
+    }
+
+    return `${y}${m}${d}${(timePart || "").replace(":", "")}`;
   }
 
   // ============================================================
@@ -515,14 +556,18 @@
   // ============================================================
 
   function classificarPrevisao(row) {
-    // Compara a previsão do modelo (prob >= 50% => prevê Over)
-    // com o resultado real, quando já existe.
-    if (row["Resultado"] !== "FINAL" || !row["Over 2.5 Real"]) {
+    // Um jogo é considerado "finalizado" quando já existe um valor
+    // em "Over 2.5 Real" (SIM/NAO), independentemente do texto exato
+    // que a coluna "Resultado" tiver (ex: FINAL, CORRETO, ERRADO...).
+    const realOver = (row["Over 2.5 Real"] || "").trim().toUpperCase();
+
+    if (realOver !== "SIM" && realOver !== "NAO" && realOver !== "NÃO") {
       return "PENDENTE";
     }
+
     const prob = toNumber(row["Probabilidade Over 2.5"]);
     const previuOver = prob !== null && prob >= 0.5;
-    const foiOver = row["Over 2.5 Real"] === "SIM";
+    const foiOver = realOver === "SIM";
     return (previuOver === foiOver) ? "ACERTO" : "ERRO";
   }
 
@@ -600,7 +645,7 @@
 
     // mais recentes primeiro (por Data Jogo)
     rows = rows.slice().sort((a, b) => {
-      return (b["Data Jogo"] || "").localeCompare(a["Data Jogo"] || "");
+      return dataParaOrdenacao(b["Data Jogo"]).localeCompare(dataParaOrdenacao(a["Data Jogo"]));
     });
 
     if (allRows.length === 0) {
@@ -647,7 +692,7 @@
       }[classificacao];
 
       let resultLine = "";
-      if (row["Resultado"] === "FINAL") {
+      if (row["Golos Casa Reais"] !== "" && row["Golos Fora Reais"] !== "") {
         const gc = row["Golos Casa Reais"];
         const gf = row["Golos Fora Reais"];
         resultLine = `<div class="result-tag">resultado ${gc}-${gf}</div>`;
